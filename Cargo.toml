@@ -40,6 +40,10 @@ rgeometry-wasm = { git = "https://github.com/rgeometry/rgeometry-wasm", branch =
 
 [[bench]]
 harness = false
+name    = "bench"
+
+[[bench]]
+harness = false
 name    = "convex_polygon"
 
 [[bench]]

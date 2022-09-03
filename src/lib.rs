@@ -342,6 +342,49 @@ macro_rules! wrapped_floating_precision {
   };
 }
 
+fn dist2d(p: &[f64; 2], q: &[f64; 2], res: &mut [f64]) -> usize {
+  use geometry_predicates::predicates::*;
+  let [pqx0, pqx1] = two_diff(p[0], q[0]);
+  let [pqy0, pqy1] = two_diff(p[1], q[1]);
+  let pqxx = two_square(pqx1, pqx0);
+  let pqyy = two_square(pqy1, pqy0);
+
+  fast_expansion_sum_zeroelim(&pqxx, &pqyy, res)
+}
+
+fn cmpdist2d(p: [f64; 2], q: [f64; 2], r: [f64; 2]) -> std::cmp::Ordering {
+  let [px, py] = p;
+  let [qx, qy] = q;
+  let [rx, ry] = r;
+  let dq = (px - qx).powi(2) + (py - qy).powi(2);
+  let dr = (px - rx).powi(2) + (py - ry).powi(2);
+  if dq < dr {
+    return std::cmp::Ordering::Less;
+  }
+  if dq > dr {
+    return std::cmp::Ordering::Greater;
+  }
+
+  use geometry_predicates::predicates::*;
+  let mut dq = [0f64; 10];
+  let dqlen = dist2d(&p, &q, &mut dq);
+  let mut dr = [0f64; 10];
+  let drlen = dist2d(&p, &r, &mut dr);
+
+  dr.iter_mut().for_each(|x| *x = -*x);
+
+  let mut d = [0f64; 14];
+  let dlen = fast_expansion_sum_zeroelim(&dq[..dqlen], &dr[..drlen], &mut d);
+  let v = d[dlen - 1];
+  if v < 0.0 {
+    Ordering::Less
+  } else if v > 0.0 {
+    Ordering::Greater
+  } else {
+    Ordering::Equal
+  }
+}
+
 macro_rules! floating_precision {
   ( $( $ty:ty ),* ) => {
     $(
@@ -355,13 +398,13 @@ macro_rules! floating_precision {
       fn from_constant(val: i8) -> Self {
         <$ty>::from_i8(val).unwrap()
       }
-      // FIXME: Use `geometry_predicates` to speed up calculation. Right now we're
-      // roughly 100x slower than necessary.
+
+      // TODO: Could be faster by inventing adaptive version?
       fn cmp_dist(p: &[Self; 2], q: &[Self; 2], r: &[Self; 2]) -> std::cmp::Ordering {
-        PolygonScalar::cmp_dist(
-          &[float_to_rational(p[0]), float_to_rational(p[1])],
-          &[float_to_rational(q[0]), float_to_rational(q[1])],
-          &[float_to_rational(r[0]), float_to_rational(r[1])],
+        cmpdist2d(
+          [p[0] as f64, p[1] as f64],
+          [q[0] as f64, q[1] as f64],
+          [r[0] as f64, r[1] as f64],
         )
       }
 
